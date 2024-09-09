@@ -1,0 +1,124 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, models
+import cv2
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import os
+
+# 1. Model Training
+def create_model(input_shape):
+    model = models.Sequential([
+        layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape),
+        layers.MaxPooling2D((2, 2)),
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.MaxPooling2D((2, 2)),
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.Flatten(),
+        layers.Dense(64, activation='relu'),
+        layers.Dense(1, activation='sigmoid')
+    ])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return model
+
+def train_model(X_train, y_train):
+    input_shape = X_train.shape[1:]
+    model = create_model(input_shape)
+    model.fit(X_train, y_train, epochs=10, validation_split=0.2)
+    return model
+
+# 2. Video Processing
+def process_video(video_path, model):
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frame = cv2.resize(frame, (224, 224))
+        frames.append(frame)
+    cap.release()
+    return np.array(frames) / 255.0
+
+# 3. Deep Fake Detection
+def detect_deepfake(video_path, model):
+    processed_frames = process_video(video_path, model)
+    predictions = model.predict(processed_frames)
+    return np.mean(predictions) > 0.5
+
+# 4. Email Alert System
+def send_alert(recipient_email):
+    sender_email = os.environ.get('SENDER_EMAIL')
+    app_password = os.environ.get('APP_PASSWORD')
+
+    if not sender_email or not app_password:
+        print("Error: Email credentials not set in environment variables.")
+        return
+
+    message = MIMEMultipart("alternative")
+    message["Subject"] = "Deep Fake Alert"
+    message["From"] = sender_email
+    message["To"] = recipient_email
+
+    text = """
+    A deep fake video using your face has been detected.
+
+    Please choose an action:
+    1. Report to Social Media Customer Care
+    2. Report to Cybercrime Authorities
+    """
+
+    html = """
+    <html>
+    <body>
+        <p>A deep fake video using your face has been detected.</p>
+        <p>Please choose an action:</p>
+        <a href="http://example.com/report_social_media">
+            <button>Report to Social Media Customer Care</button>
+        </a>
+        <a href="http://example.com/report_cybercrime">
+            <button>Report to Cybercrime Authorities</button>
+        </a>
+    </body>
+    </html>
+    """
+
+    part1 = MIMEText(text, "plain")
+    part2 = MIMEText(html, "html")
+
+    message.attach(part1)
+    message.attach(part2)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, app_password)
+            server.sendmail(sender_email, recipient_email, message.as_string())
+        print("Alert sent successfully!")
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")
+
+# Main execution
+if __name__ == "__main__":
+    # Set environment variables for email credentials
+    os.environ['SENDER_EMAIL'] = 'deepfakevideosdetection@gmail.com'
+    os.environ['APP_PASSWORD'] = 'xjtk lizr pdnj tnvv'
+
+    # Assume X_train and y_train are your training data and labels
+    # X_train = ...
+    # y_train = ...
+
+    # Train the model
+    # model = train_model(X_train, y_train)
+
+    # For demonstration, we'll skip training and use a dummy model
+    model = create_model((224, 224, 3))
+
+    # Detect deep fake in a video
+    video_path = "/content/Recording 2024-09-08 103742.mp4"
+    is_deepfake = detect_deepfake(video_path, model)
+
+    if is_deepfake:
+        send_alert("kovendhan2535@gmail.com")
+    else:
+        print("No deep fake detected.")
